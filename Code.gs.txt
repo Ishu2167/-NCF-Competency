@@ -1,0 +1,130 @@
+// =====================================================
+// NCF Curricular Goals & Competencies - Teacher Dashboard
+// Web App with Stage-wise browsing and Keyword Search
+// =====================================================
+
+// Get the active sheet (assumes your data is in the first sheet)
+function getSheet() {
+  // If deployed as standalone, you need to open by ID
+  // Option 1: If script is bound to the sheet, use this:
+  try {
+    return SpreadsheetApp.getActiveSheet();
+  } catch(e) {
+    // Option 2: Replace with your Google Sheet ID (if standalone)
+    // var ss = SpreadsheetApp.openById('YOUR_SHEET_ID_HERE');
+    // return ss.getSheets()[0];
+    throw new Error('Please bind this script to your Google Sheet or add Sheet ID');
+  }
+}
+
+// Web App entry point - serves the HTML dashboard
+function doGet() {
+  var html = HtmlService.createTemplateFromFile('Dashboard')
+    .evaluate()
+    .setTitle('NCF Competency Dashboard')
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+  return html;
+}
+
+// Include external HTML files
+function include(filename) {
+  return HtmlService.createHtmlOutputFromFile(filename).getContent();
+}
+
+// Get all competency data from the sheet
+function getAllData() {
+  var sheet = getSheet();
+  var data = sheet.getDataRange().getValues();
+  var headers = data[0];
+  var results = [];
+  
+  for (var i = 1; i < data.length; i++) {
+    var row = data[i];
+    if (row[0] && row[0].toString().trim() !== '') {
+      results.push({
+        rowNum: i,
+        domain: row[0] ? row[0].toString().trim() : '',
+        stage: row[1] ? row[1].toString().trim() : '',
+        cgId: row[2] ? row[2].toString().trim() : '',
+        cgDescription: row[3] ? row[3].toString().trim() : '',
+        competencyId: row[4] ? row[4].toString().trim() : '',
+        competencyDescription: row[5] ? row[5].toString().trim() : ''
+      });
+    }
+  }
+  return results;
+}
+
+// Get data filtered by stage
+function getDataByStage(stage) {
+  var allData = getAllData();
+  if (stage === 'All') return allData;
+  return allData.filter(function(item) {
+    return item.stage === stage;
+  });
+}
+
+// Search by keyword across all fields
+function searchByKeyword(keyword, stageFilter) {
+  var allData = getAllData();
+  var keywordLower = keyword.toLowerCase().trim();
+  var results = [];
+  
+  for (var i = 0; i < allData.length; i++) {
+    var item = allData[i];
+    
+    // Apply stage filter
+    if (stageFilter && stageFilter !== 'All' && item.stage !== stageFilter) {
+      continue;
+    }
+    
+    // Search in relevant fields
+    var searchText = (
+      (item.cgDescription || '') + ' ' + 
+      (item.competencyDescription || '') + ' ' + 
+      (item.domain || '') + ' ' + 
+      (item.cgId || '') + ' ' + 
+      (item.competencyId || '')
+    ).toLowerCase();
+    
+    if (searchText.indexOf(keywordLower) !== -1) {
+      results.push(item);
+    }
+  }
+  return results;
+}
+
+// Get unique stages with counts
+function getStageStats() {
+  var allData = getAllData();
+  var stats = {};
+  
+  for (var i = 0; i < allData.length; i++) {
+    var stage = allData[i].stage;
+    if (!stats[stage]) {
+      stats[stage] = {
+        total: 0,
+        domains: {}
+      };
+    }
+    stats[stage].total++;
+    
+    var domain = allData[i].domain;
+    if (!stats[stage].domains[domain]) {
+      stats[stage].domains[domain] = 0;
+    }
+    stats[stage].domains[domain]++;
+  }
+  return stats;
+}
+
+// Get distinct stages list
+function getStages() {
+  var allData = getAllData();
+  var stages = {};
+  for (var i = 0; i < allData.length; i++) {
+    stages[allData[i].stage] = true;
+  }
+  return Object.keys(stages).sort();
+}
